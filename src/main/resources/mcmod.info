@@ -1,0 +1,17 @@
+[
+	{
+		"modid": "shadowindicator",
+		"name": "Shadow Indicator",
+		"description": "A mod that indicates the entity stats when you look at them.",
+		"version": "0.0.1",
+		"mcversion": "1.12.2",
+		"logoFile": "assets/shadowindicator/textures/logo.png",
+		"url": "https://discord.gg/BPnHeH4DRU",
+		"updateUrl": "",
+		"authorList": ["SrGodzin1"],
+		"credits": "Between Realms Studio",
+		"parent": "",
+		"screenshots": [],
+		"dependencies": []
+	}
+]
