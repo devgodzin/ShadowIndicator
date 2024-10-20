@@ -24,6 +24,7 @@ public class ModConfig {
         }
     }
 
+    // Changes
     public static double getMaxDistance() {
         return config.get(Configuration.CATEGORY_GENERAL, "MaxDistance", 5.0D).getDouble();
     }
