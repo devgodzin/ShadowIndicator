@@ -13,7 +13,7 @@ import brstudio.godzin.shadowindicator.util.References;
 
 import static brstudio.godzin.shadowindicator.util.References.MODID;
 
-@Mod(modid = MODID, name = References.NAME, version = "0.0.1")
+@Mod(modid = MODID, name = References.NAME, version = "0.0.2")
 public class ShadowIndicator {
 
     @Mod.Instance

@@ -2,8 +2,8 @@
 	{
 		"modid": "shadowindicator",
 		"name": "Shadow Indicator",
-		"description": "A mod that indicates the entity stats when you look at them.",
-		"version": "0.0.1",
+		"description": "A mod that indicates the entity stats when you look at them. (This version is modified for Shinobi New Era!)",
+		"version": "0.0.2",
 		"mcversion": "1.12.2",
 		"logoFile": "assets/shadowindicator/textures/logo.png",
 		"url": "https://discord.gg/BPnHeH4DRU",

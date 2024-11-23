@@ -16,6 +16,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 import java.awt.Color;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -27,7 +28,10 @@ public class Events {
 
     private static final Map<EntityLivingBase, Float> damageMap = new HashMap<>();
     private static final Map<EntityLivingBase, Integer> damageTimerMap = new HashMap<>();
-    private static final int DISPLAY_DURATION = 100; // Duração em ticks (5 segundos)
+    private static final int DISPLAY_DURATION = 500;
+
+    private static final Map<EntityLivingBase, Long> lastLookedAtTimeMap = new HashMap<>();
+    private static final int LOOK_TIMEOUT_MS = 500;
 
     @SubscribeEvent
     public static void onPlayerTick(TickEvent.PlayerTickEvent event) {
@@ -39,15 +43,18 @@ public class Events {
         double maxDistance = MAX_DISTANCE;
         Vec3d startPos = player.getPositionEyes(1.0F);
         Vec3d lookVec = player.getLook(1.0F);
-        Vec3d endPos = startPos.add(lookVec.x * maxDistance, lookVec.y * maxDistance, lookVec.z * maxDistance);
+        double lateralExpansion = 5.0;
 
-        List<Entity> entitiesInRange = player.world.getEntitiesWithinAABB(Entity.class, player.getEntityBoundingBox().expand(lookVec.x * maxDistance, lookVec.y * maxDistance, lookVec.z * maxDistance));
+        List<Entity> entitiesInRange = player.world.getEntitiesWithinAABB(Entity.class,
+                player.getEntityBoundingBox().expand(lookVec.x * maxDistance + lateralExpansion,
+                        lookVec.y * maxDistance + lateralExpansion,
+                        lookVec.z * maxDistance + lateralExpansion));
 
         Entity entityLookedAt = null;
         double closestDistance = maxDistance;
 
         for (Entity entity : entitiesInRange) {
-            if (entity != player) {
+            if (entity instanceof EntityLivingBase && entity != player) {
                 double distanceToEntity = startPos.distanceTo(entity.getPositionVector());
 
                 if (distanceToEntity < closestDistance) {
@@ -57,12 +64,19 @@ public class Events {
             }
         }
 
+        if (entityLookedAt instanceof EntityLivingBase) {
+            EntityLivingBase entityLiving = (EntityLivingBase) entityLookedAt;
+            lastLookedAtTimeMap.put(entityLiving, System.currentTimeMillis());
+        }
+
         lastEntityLookedAt = entityLookedAt;
 
-        for (EntityLivingBase entity : damageTimerMap.keySet()) {
+
+        for (Iterator<EntityLivingBase> iterator = damageTimerMap.keySet().iterator(); iterator.hasNext(); ) {
+            EntityLivingBase entity = iterator.next();
             int timeLeft = damageTimerMap.get(entity) - 1;
             if (timeLeft <= 0) {
-                damageTimerMap.remove(entity);
+                iterator.remove();
                 damageMap.remove(entity);
             } else {
                 damageTimerMap.put(entity, timeLeft);
@@ -84,6 +98,10 @@ public class Events {
     private static int getHealthBarColor(float healthRatio) {
         int red = (int) (255 * (1 - healthRatio));
         int green = (int) (255 * healthRatio);
+
+        red = Math.max(0, Math.min(255, red));
+        green = Math.max(0, Math.min(255, green));
+
         return new Color(red, green, 0).getRGB();
     }
 
@@ -101,56 +119,63 @@ public class Events {
             return;
         }
 
-        EntityLivingBase entityToRender = null;
+        double maxDistance = MAX_DISTANCE;
+        Vec3d startPos = player.getPositionEyes(1.0F);
+        Vec3d lookVec = player.getLook(1.0F);
 
-        if (mc.pointedEntity instanceof EntityLivingBase && !mc.pointedEntity.equals(player)) {
-            entityToRender = (EntityLivingBase) mc.pointedEntity;
-        } else {
-            return;
-        }
 
-        if (entityToRender != null) {
-            int margin = 10;
-            int textColor = 0xFFFFFF;
+        List<Entity> entitiesInRange = player.world.getEntitiesWithinAABB(Entity.class,
+                player.getEntityBoundingBox().expand(lookVec.x * maxDistance,
+                        lookVec.y * maxDistance,
+                        lookVec.z * maxDistance));
 
-            String entityName = DISPLAY_ENTITY_NAME ? entityToRender.getName() : "";
-            String healthText = "";
 
-            float currentHealth = entityToRender.getHealth();
-            float maxHealth = entityToRender.getMaxHealth();
-            healthText = String.format("❤ %.1f / %.1f", currentHealth, maxHealth);
+        for (Entity entity : entitiesInRange) {
+            if (entity instanceof EntityLivingBase && entity != player) {
+                EntityLivingBase entityLiving = (EntityLivingBase) entity;
 
-            int textHeight = mc.fontRenderer.FONT_HEIGHT;
-            int boxWidth = Math.max(mc.fontRenderer.getStringWidth(entityName), mc.fontRenderer.getStringWidth(healthText)) + 20;
-            int boxHeight = textHeight * (DISPLAY_ENTITY_NAME ? 2 : 1) + 30;
+                int margin = 10;
+                int textColor = 0xFFFFFF;
 
-            if (DISPLAY_ENTITY_NAME) {
-                mc.fontRenderer.drawStringWithShadow(entityName, margin + 10, margin + 5, textColor);
-            }
+                String entityName = DISPLAY_ENTITY_NAME ? entityLiving.getName() : "";
+                String healthText = "";
 
-            mc.fontRenderer.drawStringWithShadow(healthText, margin + 10, margin + (DISPLAY_ENTITY_NAME ? 20 : 5), textColor);
+                float currentHealth = entityLiving.getHealth();
+                float maxHealth = entityLiving.getMaxHealth();
+                healthText = String.format("❤ %.1f / %.1f", currentHealth, maxHealth);
 
-            if (maxHealth > 0) {
-                int healthBarWidth = boxWidth - 20;
-                int healthBarHeight = 5;
+                int textHeight = mc.fontRenderer.FONT_HEIGHT;
+                int boxWidth = Math.max(mc.fontRenderer.getStringWidth(entityName), mc.fontRenderer.getStringWidth(healthText)) + 20;
+                int boxHeight = textHeight * (DISPLAY_ENTITY_NAME ? 2 : 1) + 30;
 
-                mc.ingameGUI.drawRect(margin + 10, margin + boxHeight - 20, margin + 10 + healthBarWidth, margin + boxHeight - 20 + healthBarHeight, 0xFFAAAAAA);
-
-                float healthRatio = currentHealth / maxHealth;
-                int currentHealthBarWidth = (int) (healthBarWidth * healthRatio);
-                if (currentHealthBarWidth > 0) {
-                    int healthBarColor = getHealthBarColor(healthRatio);
-                    mc.ingameGUI.drawRect(margin + 10, margin + boxHeight - 20, margin + 10 + currentHealthBarWidth, margin + boxHeight - 20 + healthBarHeight, healthBarColor);
+                if (DISPLAY_ENTITY_NAME) {
+                    mc.fontRenderer.drawStringWithShadow(entityName, margin + 10, margin + 5, textColor);
                 }
 
-                // Mostrar dano acumulado, se houver
-                if (damageMap.containsKey(entityToRender)) {
-                    float accumulatedDamage = damageMap.get(entityToRender);
-                    String damageText = String.format("⚔ %.1f", accumulatedDamage);
+                mc.fontRenderer.drawStringWithShadow(healthText, margin + 10, margin + (DISPLAY_ENTITY_NAME ? 20 : 5), textColor);
 
-                    mc.fontRenderer.drawStringWithShadow(damageText, margin + boxWidth + 10, margin + (DISPLAY_ENTITY_NAME ? 20 : 5), 0xFF5555);
+                if (maxHealth > 0) {
+                    int healthBarWidth = boxWidth - 20;
+                    int healthBarHeight = 5;
+
+                    mc.ingameGUI.drawRect(margin + 10, margin + boxHeight - 20, margin + 10 + healthBarWidth, margin + boxHeight - 20 + healthBarHeight, 0xFFAAAAAA);
+
+                    float healthRatio = currentHealth / maxHealth;
+                    int currentHealthBarWidth = (int) (healthBarWidth * healthRatio);
+                    if (currentHealthBarWidth > 0) {
+                        int healthBarColor = getHealthBarColor(healthRatio);
+                        mc.ingameGUI.drawRect(margin + 10, margin + boxHeight - 20, margin + 10 + currentHealthBarWidth, margin + boxHeight - 20 + healthBarHeight, healthBarColor);
+                    }
+
+                    if (damageMap.containsKey(entityLiving)) {
+                        float accumulatedDamage = damageMap.get(entityLiving);
+                        String damageText = String.format("⚔ %.1f", accumulatedDamage);
+
+                        mc.fontRenderer.drawStringWithShadow(damageText, margin + boxWidth + 10, margin + (DISPLAY_ENTITY_NAME ? 20 : 5), 0xFF5555);
+                    }
                 }
             }
         }
     }
+
 }
